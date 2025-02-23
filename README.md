@@ -62,6 +62,7 @@ run_terminal_gui.bat
 ## Example GUI Output
 
 Below is a screenshot of the project's Terminal GUI alongside a dynamic line chart. It demonstrates how the tool displays final combinations, applied trends, and statistical analyses in real time:
+![image](https://github.com/user-attachments/assets/28339981-7071-4772-aeb0-7cccdb7952c0)
 
 
 
