@@ -19,7 +19,6 @@ def parse_table_analysis(file_path):
     for table in doc.tables:
         for row in table.rows[1:]:  # Skip header row
             cells = [cell.text.strip() for cell in row.cells]
-            # Accept "YYYY-MM-DD" plus anything after
             if len(cells) > 0 and re.match(r"\d{4}-\d{2}-\d{2}", cells[0]):
                 date = cells[0]
                 numbers = []
@@ -32,7 +31,6 @@ def parse_table_analysis(file_path):
                     if percent_match:
                         percentages.append(float(percent_match.group().replace('%', '')))
                 if len(numbers) == 7 and len(percentages) == 7:
-                    # Convert the lists to tuples so that each trend is fully hashable
                     trends.append((date, tuple(numbers), tuple(percentages)))
                     list_pattern_common.append((date, tuple(numbers), tuple(percentages)))
     return trends, list_pattern_common
@@ -53,18 +51,13 @@ def parse_percentage_total(file_path):
     return overall
 
 def select_trend(trends, list_pattern_common, mode):
-    """
-    Make the mode check case-insensitive, so 'random' or 'RANDOM' also works.
-    """
     if not trends or not list_pattern_common:
         return None, None, "No historical trends found."
-
     mode_lower = mode.lower()
     if mode_lower == "random":
         selected_trend = random.choice(trends)
         selected_pattern = random.choice(list_pattern_common)
         return selected_trend, selected_pattern, f"Randomly selected trend: {selected_trend}"
-
     elif mode_lower == "top3":
         trend_counts = {}
         for trend in trends:
@@ -73,7 +66,6 @@ def select_trend(trends, list_pattern_common, mode):
         selected_trend = random.choice([t[0] for t in sorted_trends])
         selected_pattern = random.choice(list_pattern_common)
         return selected_trend, selected_pattern, f"Selected one of the Top 3 Trends: {selected_trend}"
-
     elif mode_lower == "single most frequency":
         trend_counts = {}
         for trend in trends:
@@ -81,10 +73,11 @@ def select_trend(trends, list_pattern_common, mode):
         selected_trend = max(trend_counts, key=trend_counts.get)
         selected_pattern = random.choice(list_pattern_common)
         return selected_trend, selected_pattern, f"Applied most frequent trend: {selected_trend}"
-
     return None, None, "Invalid trend selection."
 
 def generate_predictions(num_results, trend_mode):
+    print(f"DEBUG: Starting prediction generation - Mode: {trend_mode}, Count: {num_results}")
+    
     cwd = os.getcwd()
     ds_file = os.path.join(cwd, "Data_storage_Lib.py")
     table_file = os.path.join(cwd, "table_analysis.docx")
@@ -99,14 +92,15 @@ def generate_predictions(num_results, trend_mode):
     predict_dict = {}
 
     for i in range(num_results):
+        print(f"DEBUG: Generating prediction {i+1}/{num_results}")
         trend, pattern_data, trend_info = select_trend(trends, list_pattern_common, trend_mode)
-        pattern_date, pattern_numbers, pattern_percentages = pattern_data if pattern_data else ("N/A", [], [])
-
+        if pattern_data:
+            pattern_date, pattern_numbers, pattern_percentages = pattern_data
+        else:
+            pattern_date, pattern_numbers, pattern_percentages = ("N/A", [], [])
         numbers = list(range(1, 50))
         random.shuffle(numbers)
         selected_numbers = sorted(numbers[:7])
-
-        # Pair up the chosen numbers with the pattern_percentages
         paired = [(x, y) for x, y in zip(selected_numbers, pattern_percentages)]
         predict_dict[f"predict_{i + 1}"] = paired
 
@@ -121,31 +115,43 @@ def generate_predictions(num_results, trend_mode):
         results.append(prediction_text)
 
     result_text = "\n".join(results)
+    print(f"DEBUG: Writing results to {result_file}")
     with open(result_file, "w", encoding="utf-8") as f:
         f.write(result_text)
 
-    # Update Data_storage_Lib.py with the new predictions dictionary
-    with open(ds_file, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-    new_lines = [line for line in lines if "predict_dict" not in line]
-    new_lines.append("\n# Updated predictions dictionary\n")
-    new_lines.append("predict_dict = " + repr(predict_dict) + "\n")
-    with open(ds_file, "w", encoding="utf-8") as f:
-        f.write("".join(new_lines))
+    # Only update Data_storage_Lib.py if the prediction count is low enough
+    if num_results <= 20:
+        print("DEBUG: Updating Data_storage_Lib.py")
+        with open(ds_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        new_lines = [line for line in lines if "predict_dict" not in line]
+        new_lines.append("\n# Updated predictions dictionary\n")
+        new_lines.append("predict_dict = " + repr(predict_dict) + "\n")
+        with open(ds_file, "w", encoding="utf-8") as f:
+            f.write("".join(new_lines))
+    else:
+        print("DEBUG: Skipping update of Data_storage_Lib.py for high prediction count")
 
+    print("DEBUG: Finished prediction generation")
     return result_text
 
 if __name__ == "__main__":
-    # If enough arguments are passed, read them. Otherwise, prompt user.
     if len(sys.argv) >= 3:
         trend_mode = sys.argv[1]
-        prediction_count = int(sys.argv[2])
+        try:
+            prediction_count = int(sys.argv[2])
+        except ValueError:
+            print("ERROR: Invalid prediction count")
+            sys.exit(1)
     else:
         print("Main: Choose Trend Mode (Random/Top3/Single Most Frequency mode)")
         trend_mode = input().strip()
         print("Main: Choose How Many Predictions?")
-        prediction_count = int(input().strip())
+        try:
+            prediction_count = int(input().strip())
+        except ValueError:
+            print("ERROR: Invalid prediction count")
+            sys.exit(1)
 
-    result = generate_predictions(prediction_count, trend_mode)
-    print(result)
+    generate_predictions(prediction_count, trend_mode)
     print("Main: Combination Analysis Completed.")
