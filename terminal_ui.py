@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QDialog, QFormLayout, QSpinBox, QComboBox, QDialogButtonBox, QSizePolicy
 )
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QSettings
-from PySide6.QtGui import QFont, QPixmap, QKeyEvent
+from PySide6.QtGui import QFont, QKeyEvent
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -193,10 +193,10 @@ class TerminalGUI(QWidget):
         self.h_layout = QHBoxLayout()
         main_layout.addLayout(self.h_layout)
         
-        # Terminal output (scrollable)
+        # Terminal output (scrollable) occupies full width by default
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.h_layout.addWidget(self.scroll_area, stretch=2)
+        self.h_layout.addWidget(self.scroll_area)
         self.output_label = QLabel()
         self.output_label.setAlignment(Qt.AlignTop)
         output_font = QFont(self.font_name, self.font_size)
@@ -204,15 +204,15 @@ class TerminalGUI(QWidget):
         self.output_label.setStyleSheet(f"color: {self.text_color};")
         self.scroll_area.setWidget(self.output_label)
         
-        # Graph container (initially hidden)
+        # Graph container (hidden by default)
         self.graph_container = QWidget()
         self.graph_layout = QVBoxLayout()
         self.graph_container.setLayout(self.graph_layout)
-        self.h_layout.addWidget(self.graph_container, stretch=3)
+        self.h_layout.addWidget(self.graph_container)
         self.graph_placeholder = QLabel()
         self.graph_placeholder.setAlignment(Qt.AlignRight)
         self.graph_layout.addWidget(self.graph_placeholder)
-        self.graph_container.hide()  # Hide right side until needed
+        self.graph_container.hide()  # Hide graph container until needed
         
         # Bottom section: input field
         bottom_layout = QHBoxLayout()
@@ -251,7 +251,7 @@ class TerminalGUI(QWidget):
         if not input_text:
             return
 
-        # Map numeric commands (top-level) if not in interactive flow.
+        # Map numeric commands if not in interactive flow.
         if not (self.waiting_for_input or self.waiting_for_predictions) and input_text.isdigit():
             command_map = {
                 "1": "run_all",
@@ -259,7 +259,8 @@ class TerminalGUI(QWidget):
                 "3": "run_combination_analysis",
                 "4": "run_current_graph_analysis",
                 "5": "clear",
-                "6": "quit"
+                "6": "quit",
+                "7": "result"
             }
             input_text = command_map.get(input_text, input_text)
 
@@ -275,7 +276,7 @@ class TerminalGUI(QWidget):
         self.update_terminal(f"Main: {input_text}")
         self.input_field.clear()
         
-        # Interactive flow for choosing Trend Mode
+        # Interactive flow: Trend Mode selection
         if self.waiting_for_input:
             if input_text.lower() == "cancel":
                 self.waiting_for_input = False
@@ -296,7 +297,7 @@ class TerminalGUI(QWidget):
                 self.update_terminal("Main: Error: Invalid input. Please retype or type 'cancel' to cancel run_combination_analysis.")
             return
 
-        # Interactive flow for choosing number of predictions
+        # Interactive flow: Number of predictions selection
         if self.waiting_for_predictions:
             if input_text.lower() == "quit":
                 self.close()
@@ -320,19 +321,19 @@ class TerminalGUI(QWidget):
         elif input_text.lower() == "run_data_prepare":
             self.run_data_prepare()
         elif input_text.lower() == "run_combination_analysis":
-            self.update_terminal("Main: Choose Trend Mode:\n1 - Random\n2 - Top3\n3 - Single Most Frequency")
+            self.update_terminal("Main: Choose Trend Mode\n1 - Random\n2 - Top3\n3 - Single Most Frequency")
             self.waiting_for_input = True
             self.user_inputs = []
         elif input_text.lower() == "run_current_graph_analysis":
             result_file = os.path.join(os.getcwd(), "combination_analysis_result.txt")
             if not os.path.exists(result_file) or os.path.getsize(result_file) == 0:
-                self.update_terminal("Main: run_current_graph_analysis is not exist, please run combination_analysis")
+                self.update_terminal("Main: run_current_graph_analysis is not available, please run run_combination_analysis first.")
                 return
             self.run_graph_analysis()
         elif input_text.lower() == "clear":
             self.output_label.setText("Terminal clear!\nType 'help' for available commands.")
             self.clear_graph_container()
-            self.graph_container.hide()  # Hide the right side as well
+            self.graph_container.hide()  # Hide graph container on clear
         elif input_text.lower() == "quit":
             self.close()
         elif input_text.lower() == "help":
@@ -344,8 +345,11 @@ Available commands:
 4 - run_current_graph_analysis: Activate embedded graph analysis tool (requires valid combination_analysis_result.txt)
 5 - clear: Clear the output and graph area
 6 - quit: Close the application
+7 - result: Display the last combination analysis results
             """
             self.update_terminal(f"Main: {help_text}")
+        elif input_text.lower() == "result":
+            self.display_combination_results()
         else:
             self.update_terminal("Main: Unknown command. Type 'help' for available commands.")
 
@@ -355,10 +359,19 @@ Available commands:
             if widget is not None:
                 widget.setParent(None)
 
+    def display_combination_results(self):
+        result_file = os.path.join(os.getcwd(), "combination_analysis_result.txt")
+        if os.path.exists(result_file) and os.path.getsize(result_file) > 0:
+            with open(result_file, "r", encoding="utf-8") as f:
+                result_content = f.read()
+            self.update_terminal(f"Main: Combination Analysis Results:\n{result_content}")
+        else:
+            self.update_terminal("Main: No results found. Please run 'run_combination_analysis' first.")
+
     def run_data_prepare(self):
         self.update_terminal("Main: Running Data_prepare.py...")
         self.update_terminal("Main: Execution progress - 0% (0 sec)")
-        self.input_field.setText("File is running,Please wait......")
+        self.input_field.setText("File is running, Please wait......")
         self.input_field.setStyleSheet(f"color: {self.text_color}; background-color: red;")
         self.input_field.setReadOnly(True)
         self.worker_thread = WorkerThread("Data_prepare.py", show_progress=True)
@@ -375,18 +388,21 @@ Available commands:
         self.input_field.setReadOnly(False)
         self.input_field.clear()
         self.input_field.setStyleSheet(f"color: {self.text_color};")
-        # If run_all mode was chosen, then after Data_prepare, clear terminal and prompt for trend mode.
+        # For run_all mode, clear terminal and prompt for trend mode; otherwise show welcome message.
         if self.run_all_mode:
-            self.run_all_mode = False
             self.output_label.setText("Terminal clear!\nType 'help' for available commands.")
-            self.update_terminal("Main: Choose Trend Mode:\n1 - Random\n2 - Top3\n3 - Single Most Frequency")
+            self.update_terminal("Main: Choose Trend Mode\n1 - Random\n2 - Top3\n3 - Single Most Frequency")
             self.waiting_for_input = True
+            self.run_all_mode = False
+        else:
+            self.output_label.setText("Terminal clear!\nType 'help' for available commands.")
+            self.update_terminal("Welcome to the Terminal GUI!\nType 'help' for available commands.")
 
     def run_combination_analysis(self):
         self.waiting_for_predictions = False
         cwd = os.getcwd()
         script_path = os.path.join(cwd, "combination_analysis.py")
-        self.input_field.setText("File is running,Please wait......")
+        self.input_field.setText("File is running, Please wait......")
         self.input_field.setStyleSheet(f"color: {self.text_color}; background-color: red;")
         self.input_field.setReadOnly(True)
         self.worker_thread = WorkerThread(script_path, self.user_inputs, show_progress=False)
@@ -401,7 +417,7 @@ Available commands:
             with open(result_file, "r", encoding="utf-8") as f:
                 result_content = f.read()
             self.update_terminal(f"Main: Task Completed.\n{result_content}")
-            # Note: The file is no longer cleared, so that its contents persist for graph analysis.
+            # Note: We no longer clear the result file so that it can be viewed later with 'result'
         else:
             self.update_terminal("Main: No result file found.")
         self.update_terminal("Main: Updating Data_Storage_Lib.py...")
@@ -414,7 +430,7 @@ Available commands:
     def run_graph_analysis(self):
         self.update_terminal("Main: Running graph analysis tool...")
         self.clear_graph_container()
-        self.graph_container.show()  # Show the right side container when graph analysis is triggered
+        self.graph_container.show()  # Show graph container when activated
         from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTextEdit
         import pyqtgraph as pg
         import importlib.util
