@@ -20,6 +20,7 @@ This project is structured into three distinct phases, each focusing on a crucia
    - The first stage involves collecting lottery data from a reliable external source: [Lottolyzer](https://en.lottolyzer.com/history/singapore/toto/page/1/per-page/50/summary-view).
    - The data is then formatted and cleaned to ensure consistency and remove anomalies or missing values.
    - This step is crucial for establishing a solid foundation for meaningful analysis.
+   - Please take note to make sure your network is on when first time running this program to obtain data from external website
 
 2. **Data Sorting and Analysis**:
 
