@@ -1,0 +1,13 @@
+PyQt6
+PySide6
+aiohttp
+bs4
+docx
+matplotlib
+numpy
+openpyxl
+pandas
+pyqtgraph
+sklearn
+stdlib_list
+win32com
