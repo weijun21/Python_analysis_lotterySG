@@ -417,12 +417,15 @@ Available commands:
             with open(result_file, "r", encoding="utf-8") as f:
                 result_content = f.read()
             self.update_terminal(f"Main: Task Completed.\n{result_content}")
-            # Note: We no longer clear the result file so that it can be viewed later with 'result'
         else:
             self.update_terminal("Main: No result file found.")
         self.update_terminal("Main: Updating Data_Storage_Lib.py...")
-        subprocess.run(["python", os.path.join(os.getcwd(), "Data_storage_Lib.py")])
-        self.update_terminal("Main: Data_Storage_Lib.py updated successfully.")
+        # Run Data_storage_Lib.py with a timeout to prevent freezing.
+        try:
+            subprocess.run(["python", os.path.join(os.getcwd(), "Data_storage_Lib.py")], timeout=10)
+            self.update_terminal("Main: Data_Storage_Lib.py updated successfully.")
+        except subprocess.TimeoutExpired:
+            self.update_terminal("Main: Data_Storage_Lib.py update timed out.")
         self.input_field.setReadOnly(False)
         self.input_field.clear()
         self.input_field.setStyleSheet(f"color: {self.text_color};")
