@@ -4,7 +4,7 @@ import time
 import os
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLineEdit, QHBoxLayout, QVBoxLayout, QLabel, QScrollArea,
-    QDialog, QFormLayout, QSpinBox, QComboBox, QDialogButtonBox, QSizePolicy
+    QDialog, QFormLayout, QSpinBox, QComboBox, QDialogButtonBox, QSizePolicy, QMainWindow
 )
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QSettings
 from PySide6.QtGui import QFont, QKeyEvent
@@ -388,7 +388,6 @@ Available commands:
         self.input_field.setReadOnly(False)
         self.input_field.clear()
         self.input_field.setStyleSheet(f"color: {self.text_color};")
-        # For run_all mode, clear terminal and prompt for trend mode; otherwise show welcome message.
         if self.run_all_mode:
             self.output_label.setText("Terminal clear!\nType 'help' for available commands.")
             self.update_terminal("Main: Choose Trend Mode\n1 - Random\n2 - Top3\n3 - Single Most Frequency")
@@ -420,7 +419,6 @@ Available commands:
         else:
             self.update_terminal("Main: No result file found.")
         self.update_terminal("Main: Updating Data_Storage_Lib.py...")
-        # Run Data_storage_Lib.py with a timeout to prevent freezing.
         try:
             subprocess.run(["python", os.path.join(os.getcwd(), "Data_storage_Lib.py")], timeout=10)
             self.update_terminal("Main: Data_Storage_Lib.py updated successfully.")
@@ -485,15 +483,17 @@ Available commands:
                     self.text_edit.setPlainText("No prediction data found in Data_storage_Lib.py.")
             
             def on_next_button_clicked(self):
+                self.flash_timer.stop()
+                self.is_total_predict = False
                 self.prediction_index += 1
                 if self.prediction_index > len(self.predict_dict):
                     self.prediction_index = 1
                 self.plot_widget.clear()
-                self.flash_timer.stop()
                 self.show_prediction(self.prediction_index)
             
             def on_total_predict_button_clicked(self):
                 self.is_total_predict = True
+                self.flash_timer.stop()
                 self.plot_widget.clear()
                 self.text_edit.clear()
                 self.plot_all_predictions()
@@ -522,7 +522,8 @@ Available commands:
                 x_yellow, y_yellow = zip(*yellow_virtual_line)
                 yellow_pen = pg.mkPen(color='y', width=2, style=Qt.PenStyle.DashLine)
                 self.plot_widget.plot(x_yellow, y_yellow, pen=yellow_pen)
-                self.adjust_range(x_real, y_real)
+                if not self.is_total_predict:
+                    self.adjust_range(x_real, y_real)
             
             def adjust_range(self, x_data, y_data):
                 if self.is_total_predict:
@@ -530,6 +531,18 @@ Available commands:
                 y_min, y_max = min(y_data), max(y_data)
                 y_buffer = 0.03 * (y_max - y_min)
                 self.plot_widget.setYRange(y_min - y_buffer, y_max + y_buffer)
+            
+            def adjust_total_predict_range(self):
+                all_y_values = []
+                for key in self.predict_dict:
+                    real_line = self.predict_dict.get(key, [])
+                    if real_line:
+                        _, y_real = zip(*real_line)
+                        all_y_values.extend(y_real)
+                if all_y_values:
+                    y_min, y_max = min(all_y_values), max(all_y_values)
+                    y_buffer = 0.05 * (y_max - y_min)
+                    self.plot_widget.setYRange(y_min - y_buffer, y_max + y_buffer)
             
             def plot_green_line(self):
                 all_y_values = []
@@ -544,6 +557,7 @@ Available commands:
                                           pen=pg.mkPen('g', width=2))
             
             def update_message_display(self, prediction_key, yellow_date, real_line, virtual_line, yellow_virtual_line):
+                from sklearn.metrics import mean_squared_error
                 x_real, y_real = zip(*real_line)
                 x_virtual, y_virtual = zip(*virtual_line)
                 x_yellow, y_yellow = zip(*yellow_virtual_line)
@@ -566,6 +580,7 @@ Available commands:
                 self.text_edit.setPlainText(message)
             
             def plot_all_predictions(self):
+                self.plot_widget.clear()
                 self.best_prediction_key = None
                 self.best_mse = float('inf')
                 for i_info in range(1, len(self.predict_dict) + 1):
@@ -575,17 +590,23 @@ Available commands:
                         continue
                     virtual_line = self.generate_virtual_line(real_line)
                     yellow_virtual_line, yellow_date = self.generate_yellow_virtual_line(real_line)
-                    self.plot_data(real_line, virtual_line, yellow_virtual_line, prediction_key, yellow_date)
                     x_real, y_real = zip(*real_line)
+                    self.plot_widget.plot(x_real, y_real, pen=pg.mkPen('b', width=2), symbol='o', symbolBrush='b')
+                    x_virtual, y_virtual = zip(*virtual_line)
+                    red_pen = pg.mkPen(color='r', width=2, style=Qt.PenStyle.DashLine)
+                    self.plot_widget.plot(x_virtual, y_virtual, pen=red_pen)
                     x_yellow, y_yellow = zip(*yellow_virtual_line)
+                    yellow_pen = pg.mkPen(color='y', width=2, style=Qt.PenStyle.DashLine)
+                    self.plot_widget.plot(x_yellow, y_yellow, pen=yellow_pen)
                     mse_real_vs_yellow = mean_squared_error(y_real, y_yellow)
                     if mse_real_vs_yellow < self.best_mse:
                         self.best_mse = mse_real_vs_yellow
                         self.best_prediction_key = prediction_key
-                if self.best_prediction_key:
-                    self.flash_best_prediction(self.best_prediction_key)
+                self.adjust_total_predict_range()
+                self.flash_timer.stop()
             
             def display_total_predict_info(self):
+                total_info = "Total Predictions Analysis:\n\n"
                 total_mse = []
                 for i_info in range(1, len(self.predict_dict) + 1):
                     prediction_key = f'predict_{i_info}'
@@ -600,18 +621,23 @@ Available commands:
                     total_mse.append((prediction_key, mse_real_vs_yellow))
                 if total_mse:
                     best_prediction = min(total_mse, key=lambda x: x[1])
-                    message = (
-                        f"Total Predictions Analysis:\n\n"
+                    total_info += (
                         f"Most accurate prediction: {best_prediction[0]} with MSE = {best_prediction[1]:.4f}\n\n"
                         f"Based on MSE, the prediction with the smallest error is deemed most accurate."
                     )
-                    self.text_edit.append(message)
+                self.text_edit.setPlainText(total_info)
             
             def flash_best_prediction(self, best_prediction_key):
+                # Flashing is disabled in total prediction mode.
+                if self.is_total_predict:
+                    return
                 self.best_prediction_key = best_prediction_key
                 self.flash_timer.start(500)
             
             def toggle_flash_color(self):
+                if self.is_total_predict:
+                    self.flash_timer.stop()
+                    return
                 color = 'b' if self.flash_state else 'c'
                 real_line = self.predict_dict.get(self.best_prediction_key, [])
                 if not real_line:
@@ -626,7 +652,6 @@ Available commands:
             
             def generate_virtual_line(self, real_line):
                 x_real, y_real = zip(*real_line)
-                import numpy as np
                 x_real_arr = np.array(x_real).reshape(-1, 1)
                 model = LinearRegression()
                 model.fit(x_real_arr, y_real)
@@ -642,7 +667,6 @@ Available commands:
                         y.append(y_trend)
                 if not X:
                     return real_line, "N/A"
-                import numpy as np
                 X = np.array(X)
                 y = np.array(y)
                 scaler = StandardScaler()
