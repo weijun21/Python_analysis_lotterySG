@@ -6,7 +6,7 @@
 
 
 ## Description
-This project is built on python 3.10, recommended this for best performance
+This project is built on python 3.10, recommended this for best performance. \n
 This repository is a personal project for learning and developing analytical techniques to study the Toto SG lottery in Singapore. The primary objective is to gain deeper insights into lottery patterns, understand combination probabilities, and explore trends that may enhance predictive accuracy. The project leverages various data analysis methods, including statistical modeling and machine learning approaches, to identify meaningful patterns in past draw results.
 
 One of the advanced features incorporated into this project is the ability to visualize lottery trends through graphical representation. By transforming numerical data into interactive visual formats, users can better understand the distribution of winning numbers, frequency of occurrences, and potential correlations between different numbers. While this project is intended for learning and exploration, it is important to note that all predictions and analysis outcomes are based on historical data and do not guarantee the accuracy or financial gains.
